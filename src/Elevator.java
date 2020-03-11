@@ -72,6 +72,8 @@ public class Elevator implements Runnable {
                     break;
             }
         }
+        if (waitingPassengers.isEmpty())
+            callingFloorsTable.remove(currentFloor);
     }
 
     private void passengerExit(Passenger passenger) {
@@ -80,6 +82,8 @@ public class Elevator implements Runnable {
         passenger.setDirection();
         floors[currentFloor - 1].addWaitingPassenger(passenger);
         passenger.pushButton();
+        if (!callingFloorsTable.containsKey(currentFloor))
+            callingFloorsTable.put(currentFloor, floors[currentFloor-1]);
     }
 
     private void checkPassengersLeaving() {
@@ -97,8 +101,9 @@ public class Elevator implements Runnable {
     }
 
     private void dropOffPassengers() {
+        if (travellingPassengers.isEmpty())
+            return;
         for (Passenger passenger : travellingPassengers) {
-            passenger.setCurrentFloor(floors[currentFloor - 1]);
             passengerExit(passenger);
         }
         travellingPassengers.clear();
@@ -120,6 +125,11 @@ public class Elevator implements Runnable {
                         state = State.STOPPED;
                         pickPassengers(callingFloor.getWaitingPassengers());
                     }
+                    break;
+                case NONE:
+                    direction = callingFloor.determineDirection();
+                    state = State.STOPPED;
+                    pickPassengers(callingFloor.getWaitingPassengers());
             }
         }
     }
@@ -128,10 +138,9 @@ public class Elevator implements Runnable {
         state = State.MOVING;
         do {
             step.incrementAndGet();
-            printStep();
 
-            if (!travellingPassengers.isEmpty()) { // let passengers leave the elevator if they reach destination floor
-                checkPassengersLeaving();
+            if (!travellingPassengers.isEmpty()) {
+                checkPassengersLeaving(); // let passengers leave the elevator if they reach destination floor
                 if (travellingPassengers.size() < PASSENGERS_LIMIT)  // pick passengers if there is free space
                     checkCalls();
             } else
@@ -140,6 +149,7 @@ public class Elevator implements Runnable {
             if (state != State.MOVING)
                 state = State.MOVING;
 
+            printStep();
             nextFloor();
 
         } while (currentFloor != destinationFloor);
@@ -196,10 +206,6 @@ public class Elevator implements Runnable {
 
     public void setFloors(Floor[] floors) {
         this.floors = floors;
-    }
-
-    public Direction getDirection() {
-        return direction;
     }
 
     public void setDirection(Direction direction) {

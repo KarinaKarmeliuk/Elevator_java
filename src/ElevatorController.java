@@ -1,7 +1,7 @@
+import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.FutureTask;
+import java.util.Set;
+import java.util.concurrent.*;
 
 public class ElevatorController {
 
@@ -18,18 +18,21 @@ public class ElevatorController {
         executorService = Executors.newCachedThreadPool();
     }
 
+    public LinkedHashMap<Integer, Floor> getCallingFloorsTable() {
+        return callingFloorsTable;
+    }
+
     public void addCallToCFTable(Floor callingFloor) {
         callingFloorsTable.put(callingFloor.getFloorIndex(), callingFloor);
     }
 
     public void initiateElevatorWork(Floor callingFloor) {
         if (elevator.getState() == Elevator.State.IDLE) {
-            elevator.setDirection(callingFloor.determineDirection());
-            if (elevator.getDirection() == Direction.UP)
-                elevator.setDestinationFloor(callingFloor.findMaxFloorDestination());
-            else
-                elevator.setDestinationFloor(callingFloor.findMinFloorDestination());
+
             elevator.setCallingFloorsTable(callingFloorsTable);
+            elevator.setDirection(Direction.getDirection(elevator.getCurrentFloor(), callingFloor.getFloorIndex()));
+            elevator.setDestinationFloor(callingFloor.getFloorIndex());
+
             futureTask = new FutureTask<>(elevator, null);
             executorService.submit(futureTask);
 
@@ -38,6 +41,7 @@ public class ElevatorController {
                     break;
                 }
                 if (elevator.step.get() >= 50) {
+                    futureTask.cancel(true);
                     executorService.shutdown();
                     return;
                 }
@@ -46,12 +50,13 @@ public class ElevatorController {
             if (callingFloorsTable.containsKey(elevator.getCurrentFloor()))
                 initiateElevatorWork(callingFloorsTable.get(elevator.getCurrentFloor()));
             else {
-                int key;
-                for (key = 1; key <= Building.numFloors; key++) {
-                    if (callingFloorsTable.containsKey(key))
-                        break;
-                }
-                initiateElevatorWork(callingFloorsTable.get(key));
+                Set entrySet = callingFloorsTable.keySet();
+                Iterator iterator = entrySet.iterator();
+                int nextFloor = 0;
+                if (iterator.hasNext())
+                    nextFloor = (Integer) iterator.next();
+                if (nextFloor != 0)
+                    initiateElevatorWork(callingFloorsTable.get(nextFloor));
             }
         }
     }

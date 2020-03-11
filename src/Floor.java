@@ -38,24 +38,6 @@ public class Floor {
             buttonDown--;
     }
 
-    public int findMaxFloorDestination() {
-        int max = waitingPassengers.getFirst().getDestinationFloorIndex();
-        for (Passenger passenger : waitingPassengers) {
-            if (passenger.getDestinationFloorIndex() > max)
-                max = passenger.getDestinationFloorIndex();
-        }
-        return max;
-    }
-
-    public int findMinFloorDestination() {
-        int min = waitingPassengers.getFirst().getDestinationFloorIndex();
-        for (Passenger passenger : waitingPassengers) {
-            if (passenger.getDestinationFloorIndex() < min)
-                min = passenger.getDestinationFloorIndex();
-        }
-        return min;
-    }
-
     public Direction determineDirection() {
         if (buttonUp >= buttonDown)
             return Direction.UP;
@@ -81,9 +63,5 @@ public class Floor {
 
     public void addWaitingPassenger(Passenger passenger) {
         waitingPassengers.addLast(passenger);
-    }
-
-    public int getNumWaitingPassenger() {
-        return waitingPassengers.size();
     }
 }
