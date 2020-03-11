@@ -2,6 +2,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Elevator implements Runnable {
 
@@ -11,7 +12,7 @@ public class Elevator implements Runnable {
         STOPPED
     }
 
-    private int step;
+    public AtomicInteger step;
     private State state;
     private final int PASSENGERS_LIMIT;
     private Floor floors[];
@@ -26,7 +27,7 @@ public class Elevator implements Runnable {
     }
 
     public Elevator() {
-        step = 0;
+        step = new AtomicInteger(0);
         state = State.IDLE;
         PASSENGERS_LIMIT = 5;
         currentFloor = 1;
@@ -40,17 +41,18 @@ public class Elevator implements Runnable {
         callProcessing();
     }
 
-    private int pickPassengers(LinkedList<Passenger> waitingPassengers) {
-        int pickedPassengers = 0;
+    private void pickPassengers(LinkedList<Passenger> waitingPassengers) {
 
         if (waitingPassengers.isEmpty())
-            return pickedPassengers;
+            return;
 
-        Iterator<Passenger> iterator = waitingPassengers.listIterator();
+        Iterator<Passenger> iterator = waitingPassengers.iterator();
         Passenger passenger;
         while (iterator.hasNext()) {
             passenger = iterator.next();
+
             if (direction == passenger.getDirection()) {
+
                 switch (direction) {
                     case UP:
                         if (passenger.getDestinationFloorIndex() > destinationFloor)
@@ -60,15 +62,16 @@ public class Elevator implements Runnable {
                         if (passenger.getDestinationFloorIndex() < destinationFloor)
                             destinationFloor = passenger.getDestinationFloorIndex();
                 }
+
+                passenger.getCurrentFloor().releasedButton(direction);
                 travellingPassengers.add(passenger);
+
                 iterator.remove();
-                pickedPassengers++;
 
                 if (travellingPassengers.size() == PASSENGERS_LIMIT)
                     break;
             }
         }
-        return pickedPassengers;
     }
 
     private void passengerExit(Passenger passenger) {
@@ -101,8 +104,67 @@ public class Elevator implements Runnable {
         travellingPassengers.clear();
     }
 
+    private void checkCalls() {
+        if (callingFloorsTable.containsKey(currentFloor)) { // check if there is any UP/DOWN call for current floor
+
+            Floor callingFloor = callingFloorsTable.get(currentFloor);
+            switch (direction) { // check if there are co-directional UP/DOWN calls for elevator moving
+                case UP:
+                    if (callingFloor.getButtonUp() > 0) {
+                        state = State.STOPPED;
+                        pickPassengers(callingFloor.getWaitingPassengers());
+                    }
+                    break;
+                case DOWN:
+                    if (callingFloor.getButtonDown() > 0) {
+                        state = State.STOPPED;
+                        pickPassengers(callingFloor.getWaitingPassengers());
+                    }
+            }
+        }
+    }
+
+    private void callProcessing() {
+        state = State.MOVING;
+        do {
+            step.incrementAndGet();
+            printStep();
+
+            if (!travellingPassengers.isEmpty()) { // let passengers leave the elevator if they reach destination floor
+                checkPassengersLeaving();
+                if (travellingPassengers.size() < PASSENGERS_LIMIT)  // pick passengers if there is free space
+                    checkCalls();
+            } else
+                checkCalls();
+
+            if (state != State.MOVING)
+                state = State.MOVING;
+
+            nextFloor();
+
+        } while (currentFloor != destinationFloor);
+
+        state = State.STOPPED;
+        step.incrementAndGet();
+        dropOffPassengers();
+        destinationFloor = currentFloor;
+        state = State.IDLE;
+        direction = Direction.NONE;
+        printStep();
+    }
+
+    private void nextFloor() {
+        if (state == State.MOVING) {
+            if (direction == Direction.UP)
+                currentFloor++;
+            else if (this.direction == Direction.DOWN)
+                currentFloor--;
+        }
+    }
+
     private void printStep() {
-        System.out.println("*** Step " + step + " ***");
+
+        System.out.println("\n*** Step " + step + " ***");
         for (int i = floors.length - 1; i >= 0; i--) {
             System.out.print("Floor_" + floors[i].getFloorIndex() + "|");
             if (currentFloor == floors[i].getFloorIndex()) {
@@ -117,63 +179,6 @@ public class Elevator implements Runnable {
                         System.out.printf("%d ", passenger.getDestinationFloorIndex()));
             }
             System.out.println();
-        }
-    }
-
-    private void callProcessing() {
-        state = State.MOVING;
-        do {
-            step++;
-            printStep();
-
-            if (!travellingPassengers.isEmpty()) // let passengers leave the elevator if they reach destination floor
-                checkPassengersLeaving();
-
-            if (travellingPassengers.size() < PASSENGERS_LIMIT) { // pick passengers if there is free space
-                if (callingFloorsTable.containsKey(currentFloor)) { // check if there is any UP/DOWN call for current floor
-
-                    Floor callingFloor = callingFloorsTable.get(currentFloor);
-                    switch (direction) { // check if there are co-directional UP/DOWN calls for elevator moving
-                        case UP:
-                            if (callingFloor.getButtonUp() > 0) {
-                                state = State.STOPPED;
-                                int pickedPassengers = pickPassengers(callingFloor.getWaitingPassengers());
-                                callingFloor.unsetButtonUp(pickedPassengers);
-                            }
-                            break;
-                        case DOWN:
-                            if (callingFloor.getButtonDown() > 0) {
-                                state = State.STOPPED;
-                                int pickedPassengers = pickPassengers(callingFloor.getWaitingPassengers());
-                                callingFloor.unsetButtonDown(pickedPassengers);
-                            }
-                    }
-                }
-            }
-
-            if (state != State.MOVING)
-                state = State.MOVING;
-
-            nextFloor();
-            System.out.println();
-
-        } while (currentFloor != destinationFloor);
-
-        state = State.STOPPED;
-        step++;
-        dropOffPassengers();
-        destinationFloor = currentFloor;
-        state = State.IDLE;
-        direction = Direction.NONE;
-        printStep();
-    }
-
-    private void nextFloor() {
-        if (state == State.MOVING) {
-            if (direction == Direction.UP)
-                currentFloor++;
-            else if (this.direction == Direction.DOWN)
-                currentFloor--;
         }
     }
 

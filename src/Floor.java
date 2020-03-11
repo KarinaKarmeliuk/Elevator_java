@@ -31,6 +31,13 @@ public class Floor {
             buttonDown++;
     }
 
+    public void releasedButton(Direction direction) {
+        if (direction == Direction.UP)
+            buttonUp--;
+        else if (direction == Direction.DOWN)
+            buttonDown--;
+    }
+
     public int findMaxFloorDestination() {
         int max = waitingPassengers.getFirst().getDestinationFloorIndex();
         for (Passenger passenger : waitingPassengers) {
@@ -64,16 +71,8 @@ public class Floor {
         return buttonUp;
     }
 
-    public void unsetButtonUp(int reduceValue) {
-        buttonUp -= reduceValue;
-    }
-
     public int getButtonDown() {
         return buttonDown;
-    }
-
-    public void unsetButtonDown(int reduceValue) {
-        buttonDown -= reduceValue;
     }
 
     public LinkedList<Passenger> getWaitingPassengers() {

@@ -10,14 +10,12 @@ public class ElevatorController {
     private LinkedHashMap<Integer, Floor> callingFloorsTable;
     private ExecutorService executorService;
     private FutureTask<Void> futureTask;
-    private int reachDestinationCounter; // to make program finish
 
     public ElevatorController(Elevator elevator) {
         this.elevator = elevator;
         //callingFloorsTable = Collections.synchronizedMap(new LinkedHashMap<>(Building.numFloors + 10));
         callingFloorsTable = new LinkedHashMap<>(Building.numFloors + 10);
         executorService = Executors.newCachedThreadPool();
-        reachDestinationCounter = 0;
     }
 
     public void addCallToCFTable(Floor callingFloor) {
@@ -34,23 +32,26 @@ public class ElevatorController {
             elevator.setCallingFloorsTable(callingFloorsTable);
             futureTask = new FutureTask<>(elevator, null);
             executorService.submit(futureTask);
+
             while (true) {
                 if (futureTask.isDone()) {
-                    reachDestinationCounter++;
                     break;
                 }
+                if (elevator.step.get() >= 50) {
+                    executorService.shutdown();
+                    return;
+                }
             }
-            // begin recursion of this method till the elevator reach its destination 2 times
-            if (reachDestinationCounter == 2) {
-                executorService.shutdown();
-                return;
-            } else if (callingFloorsTable.containsKey(elevator.getCurrentFloor()))
+            // begin recursion of this method till the elevator makes 50 or little more steps
+            if (callingFloorsTable.containsKey(elevator.getCurrentFloor()))
                 initiateElevatorWork(callingFloorsTable.get(elevator.getCurrentFloor()));
             else {
-                for (int i = 1; i <= Building.numFloors; i++) {
-                    if (callingFloorsTable.containsKey(i))
-                        initiateElevatorWork(callingFloorsTable.get(i));
+                int key;
+                for (key = 1; key <= Building.numFloors; key++) {
+                    if (callingFloorsTable.containsKey(key))
+                        break;
                 }
+                initiateElevatorWork(callingFloorsTable.get(key));
             }
         }
     }

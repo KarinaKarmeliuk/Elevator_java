@@ -8,6 +8,11 @@ public class Passenger {
         currentFloor = floor;
         setDestinationFloorIndex();
         setDirection();
+
+    }
+
+    public Floor getCurrentFloor() {
+        return currentFloor;
     }
 
     public int getDestinationFloorIndex() {
