@@ -3,13 +3,15 @@ import java.util.LinkedList;
 public class Floor {
 
     private final int floorIndex;
-    private ElevatorController elevatorController;
+    private int outPassengers;
     private int buttonUp;
     private int buttonDown;
+
     private LinkedList<Passenger> waitingPassengers;
 
     public Floor(int floorIndex, ElevatorController elevatorController) {
         this.floorIndex = floorIndex;
+        outPassengers = 0;
         int numPassengers = RandomGenerator.getRandomNumberInRange(0, 10);
         waitingPassengers = new LinkedList<>();
 
@@ -49,6 +51,14 @@ public class Floor {
         return floorIndex;
     }
 
+    public int getOutPassengers() {
+        return outPassengers;
+    }
+
+    public void incrementOutPassengers() {
+        outPassengers++;
+    }
+
     public int getButtonUp() {
         return buttonUp;
     }
@@ -59,9 +69,5 @@ public class Floor {
 
     public LinkedList<Passenger> getWaitingPassengers() {
         return waitingPassengers;
-    }
-
-    public void addWaitingPassenger(Passenger passenger) {
-        waitingPassengers.addLast(passenger);
     }
 }

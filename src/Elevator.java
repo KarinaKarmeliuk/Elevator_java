@@ -1,10 +1,6 @@
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.*;
 
-public class Elevator implements Runnable {
+public class Elevator {
 
     public enum State {
         IDLE,
@@ -12,33 +8,32 @@ public class Elevator implements Runnable {
         STOPPED
     }
 
-    public AtomicInteger step;
-    private State state;
     private final int PASSENGERS_LIMIT;
+    private int step;
+    private State state;
     private Floor floors[];
     private int currentFloor;
     private int destinationFloor;
     private Direction direction;
-    private ArrayList<Passenger> travellingPassengers; // can use ArrayList, because it used only by Elevator-thread
+    private List<Passenger> travellingPassengers;
     private Map<Integer, Floor> callingFloorsTable;
+    private int totalWaitingPassengers;
+    private int totalOutPassengers;
 
     public void setCallingFloorsTable(Map<Integer, Floor> callingFloorsTable) {
         this.callingFloorsTable = callingFloorsTable;
     }
 
     public Elevator() {
-        step = new AtomicInteger(0);
-        state = State.IDLE;
         PASSENGERS_LIMIT = 5;
+        step = 0;
+        state = State.IDLE;
         currentFloor = 1;
         destinationFloor = 1;
         direction = Direction.NONE;
         travellingPassengers = new ArrayList<>(5);
-    }
-
-    @Override
-    public void run() {
-        callProcessing();
+        totalWaitingPassengers = 0;
+        totalOutPassengers = 0;
     }
 
     private void pickPassengers(LinkedList<Passenger> waitingPassengers) {
@@ -67,6 +62,7 @@ public class Elevator implements Runnable {
                 travellingPassengers.add(passenger);
 
                 iterator.remove();
+                totalWaitingPassengers--;
 
                 if (travellingPassengers.size() == PASSENGERS_LIMIT)
                     break;
@@ -74,16 +70,6 @@ public class Elevator implements Runnable {
         }
         if (waitingPassengers.isEmpty())
             callingFloorsTable.remove(currentFloor);
-    }
-
-    private void passengerExit(Passenger passenger) {
-        passenger.setCurrentFloor(floors[currentFloor - 1]);
-        passenger.setDestinationFloorIndex();
-        passenger.setDirection();
-        floors[currentFloor - 1].addWaitingPassenger(passenger);
-        passenger.pushButton();
-        if (!callingFloorsTable.containsKey(currentFloor))
-            callingFloorsTable.put(currentFloor, floors[currentFloor-1]);
     }
 
     private void checkPassengersLeaving() {
@@ -95,18 +81,10 @@ public class Elevator implements Runnable {
                 if (state != State.STOPPED)
                     state = State.STOPPED;
                 iterator.remove();
-                passengerExit(passenger);
+                floors[currentFloor-1].incrementOutPassengers();
+                totalOutPassengers++;
             }
         }
-    }
-
-    private void dropOffPassengers() {
-        if (travellingPassengers.isEmpty())
-            return;
-        for (Passenger passenger : travellingPassengers) {
-            passengerExit(passenger);
-        }
-        travellingPassengers.clear();
     }
 
     private void checkCalls() {
@@ -134,29 +112,38 @@ public class Elevator implements Runnable {
         }
     }
 
-    private void callProcessing() {
+    public void callProcessing() {
         state = State.MOVING;
-        do {
-            step.incrementAndGet();
 
-            if (!travellingPassengers.isEmpty()) {
-                checkPassengersLeaving(); // let passengers leave the elevator if they reach destination floor
-                if (travellingPassengers.size() < PASSENGERS_LIMIT)  // pick passengers if there is free space
+        while (totalWaitingPassengers > 0) {
+            Set<Integer> entrySet = callingFloorsTable.keySet();
+            Iterator<Integer> iterator = entrySet.iterator();
+            if (iterator.hasNext())
+                destinationFloor = iterator.next();
+            direction = Direction.getDirection(currentFloor, destinationFloor);
+
+            do {
+                step++;
+
+                if (!travellingPassengers.isEmpty()) {
+                    checkPassengersLeaving(); // let passengers leave the elevator if they reach destination floor
+                    if (travellingPassengers.size() < PASSENGERS_LIMIT)  // pick passengers if there is free space
+                        checkCalls();
+                } else
                     checkCalls();
-            } else
-                checkCalls();
 
-            if (state != State.MOVING)
-                state = State.MOVING;
+                if (state != State.MOVING)
+                    state = State.MOVING;
 
-            printStep();
-            nextFloor();
+                printStep();
+                nextFloor();
 
-        } while (currentFloor != destinationFloor);
+            } while (currentFloor != destinationFloor);
+        }
 
         state = State.STOPPED;
-        step.incrementAndGet();
-        dropOffPassengers();
+        step++;
+        checkPassengersLeaving();
         destinationFloor = currentFloor;
         state = State.IDLE;
         direction = Direction.NONE;
@@ -175,40 +162,54 @@ public class Elevator implements Runnable {
     private void printStep() {
 
         System.out.println("\n*** Step " + step + " ***");
+
         for (int i = floors.length - 1; i >= 0; i--) {
-            System.out.print("Floor_" + floors[i].getFloorIndex() + "|");
+            System.out.printf("%-2d %2d.|",
+                    floors[i].getOutPassengers(),
+                    floors[i].getFloorIndex()
+            );
             if (currentFloor == floors[i].getFloorIndex()) {
-                System.out.printf("%-4s|travelling passengers: ", direction.name());
-                if (!travellingPassengers.isEmpty())
-                    travellingPassengers.forEach(passenger ->
-                            System.out.printf("%d ", passenger.getDestinationFloorIndex()));
-            }
-            System.out.print("\t|waiting passengers: ");
+                String directionSign = "";
+                switch (direction) {
+                    case UP:
+                        directionSign = "^";
+                        break;
+                    case DOWN:
+                        directionSign = "v";
+                        break;
+                    case NONE:
+                        directionSign = "-";
+                }
+                System.out.print(directionSign);
+                Iterator<Passenger> passengerIterator = travellingPassengers.iterator();
+                for (int j = 0; j < PASSENGERS_LIMIT; j++) {
+                    if (passengerIterator.hasNext())
+                        System.out.printf(" %d", passengerIterator.next().getDestinationFloorIndex());
+                    else
+                        System.out.print(" .");
+                }
+                System.out.print(" " + directionSign);
+            } else
+                System.out.print(" ");
+            System.out.print("|");
             if (!floors[i].getWaitingPassengers().isEmpty()) {
                 floors[i].getWaitingPassengers().forEach(passenger ->
                         System.out.printf("%d ", passenger.getDestinationFloorIndex()));
             }
             System.out.println();
         }
+        System.out.printf("Total out: %d  Total waiting: %d\n", totalOutPassengers, totalWaitingPassengers);
     }
 
     public State getState() {
         return state;
     }
 
-    public int getCurrentFloor() {
-        return currentFloor;
-    }
-
-    public void setDestinationFloor(int destinationFloor) {
-        this.destinationFloor = destinationFloor;
-    }
-
     public void setFloors(Floor[] floors) {
         this.floors = floors;
     }
 
-    public void setDirection(Direction direction) {
-        this.direction = direction;
+    public void setTotalWaitingPassengers(int totalWaitingPassengers) {
+        this.totalWaitingPassengers = totalWaitingPassengers;
     }
 }
