@@ -162,36 +162,38 @@ public class Elevator {
     private void printStep() {
 
         System.out.println("\n*** Step " + step + " ***");
+        char spacer = '|';
 
         for (int i = floors.length - 1; i >= 0; i--) {
-            System.out.printf("%-2d %2d.|",
+            System.out.printf("%-2d %2d.%c",
                     floors[i].getOutPassengers(),
-                    floors[i].getFloorIndex()
+                    floors[i].getFloorIndex(),
+                    spacer
             );
             if (currentFloor == floors[i].getFloorIndex()) {
-                String directionSign = "";
+                char directionSign = ' ';
                 switch (direction) {
                     case UP:
-                        directionSign = "^";
+                        directionSign = '^';
                         break;
                     case DOWN:
-                        directionSign = "v";
+                        directionSign = 'v';
                         break;
                     case NONE:
-                        directionSign = "-";
+                        directionSign = '-';
                 }
                 System.out.print(directionSign);
                 Iterator<Passenger> passengerIterator = travellingPassengers.iterator();
                 for (int j = 0; j < PASSENGERS_LIMIT; j++) {
                     if (passengerIterator.hasNext())
-                        System.out.printf(" %d", passengerIterator.next().getDestinationFloorIndex());
+                        System.out.printf("%3d", passengerIterator.next().getDestinationFloorIndex());
                     else
-                        System.out.print(" .");
+                        System.out.printf("%3c", '.');
                 }
-                System.out.print(" " + directionSign);
+                System.out.printf("%3c", directionSign);
+                System.out.printf("%c", spacer);
             } else
-                System.out.print(" ");
-            System.out.print("|");
+                System.out.printf("%20c", spacer);
             if (!floors[i].getWaitingPassengers().isEmpty()) {
                 floors[i].getWaitingPassengers().forEach(passenger ->
                         System.out.printf("%d ", passenger.getDestinationFloorIndex()));
