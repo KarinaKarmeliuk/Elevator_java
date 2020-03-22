@@ -18,13 +18,11 @@ public class UserControlPanel {
             clientSocket = new Socket("localhost", 6545);
             while (true) { // general loop - for reset input/output streams if there was invalid input
 
-                //Scanner scanner = new Scanner(System.in);
                 Scanner scanner = new Scanner(System.in);
                 outputStream = new DataOutputStream(clientSocket.getOutputStream());
                 inputStream = new DataInputStream(clientSocket.getInputStream());
                 short userInput = 1;
 
-                //System.out.println("Total number of floors is " + args[0]);
                 System.out.println("Tips:\n\tinput two numbers separated by spacer and press ENTER\n" +
                         "\t1st number - for passenger's current floor, 2nd - for passenger's destination floor\n" +
                         "\tinput \"0\" - for stop]");
