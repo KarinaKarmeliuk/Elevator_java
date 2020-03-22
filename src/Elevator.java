@@ -1,6 +1,7 @@
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class Elevator {
+public class Elevator implements Runnable {
 
     public enum State {
         IDLE,
@@ -16,13 +17,9 @@ public class Elevator {
     private int destinationFloor;
     private Direction direction;
     private List<Passenger> travellingPassengers;
-    private Map<Integer, Floor> callingFloorsTable;
-    private int totalWaitingPassengers;
     private int totalOutPassengers;
-
-    public void setCallingFloorsTable(Map<Integer, Floor> callingFloorsTable) {
-        this.callingFloorsTable = callingFloorsTable;
-    }
+    private ElevatorController elevatorController;
+    AtomicBoolean passengerAddedByUser;
 
     public Elevator() {
         PASSENGERS_LIMIT = 5;
@@ -32,11 +29,16 @@ public class Elevator {
         destinationFloor = 1;
         direction = Direction.NONE;
         travellingPassengers = new ArrayList<>(5);
-        totalWaitingPassengers = 0;
         totalOutPassengers = 0;
+        passengerAddedByUser = new AtomicBoolean(false);
     }
 
-    private void pickPassengers(LinkedList<Passenger> waitingPassengers) {
+    @Override
+    public void run() {
+        callProcessing();
+    }
+
+    private void pickPassengers(List<Passenger> waitingPassengers) {
 
         if (waitingPassengers.isEmpty())
             return;
@@ -50,26 +52,26 @@ public class Elevator {
 
                 switch (direction) {
                     case UP:
-                        if (passenger.getDestinationFloorIndex() > destinationFloor)
-                            destinationFloor = passenger.getDestinationFloorIndex();
+                        if (passenger.getDestinationFloor() > destinationFloor)
+                            destinationFloor = passenger.getDestinationFloor();
                         break;
                     case DOWN:
-                        if (passenger.getDestinationFloorIndex() < destinationFloor)
-                            destinationFloor = passenger.getDestinationFloorIndex();
+                        if (passenger.getDestinationFloor() < destinationFloor)
+                            destinationFloor = passenger.getDestinationFloor();
                 }
 
                 passenger.getCurrentFloor().releasedButton(direction);
                 travellingPassengers.add(passenger);
 
                 iterator.remove();
-                totalWaitingPassengers--;
+                elevatorController.getTotalWaitingPassengers().decrementAndGet();
 
                 if (travellingPassengers.size() == PASSENGERS_LIMIT)
                     break;
             }
         }
         if (waitingPassengers.isEmpty())
-            callingFloorsTable.remove(currentFloor);
+            elevatorController.getCallingFloorsTable().remove(currentFloor);
     }
 
     private void checkPassengersLeaving() {
@@ -77,7 +79,7 @@ public class Elevator {
         Passenger passenger;
         while (iterator.hasNext()) {
             passenger = iterator.next();
-            if (currentFloor == passenger.getDestinationFloorIndex()) {
+            if (currentFloor == passenger.getDestinationFloor()) {
                 if (state != State.STOPPED)
                     state = State.STOPPED;
                 iterator.remove();
@@ -88,9 +90,12 @@ public class Elevator {
     }
 
     private void checkCalls() {
-        if (callingFloorsTable.containsKey(currentFloor)) { // check if there is any UP/DOWN call for current floor
+        // check if there is any UP/DOWN call for current floor
+        if (elevatorController.getCallingFloorsTable().containsKey(currentFloor)) {
+            if (travellingPassengers.isEmpty())
+                direction = Direction.NONE;
 
-            Floor callingFloor = callingFloorsTable.get(currentFloor);
+            Floor callingFloor = elevatorController.getCallingFloorsTable().get(currentFloor);
             switch (direction) { // check if there are co-directional UP/DOWN calls for elevator moving
                 case UP:
                     if (callingFloor.getButtonUp() > 0) {
@@ -112,14 +117,24 @@ public class Elevator {
         }
     }
 
+    private void resetElevator() {
+        state = State.STOPPED;
+        checkPassengersLeaving();
+        state = State.IDLE;
+        direction = Direction.NONE;
+    }
+
     public void callProcessing() {
         state = State.MOVING;
 
-        while (totalWaitingPassengers > 0) {
-            Set<Integer> entrySet = callingFloorsTable.keySet();
-            Iterator<Integer> iterator = entrySet.iterator();
-            if (iterator.hasNext())
-                destinationFloor = iterator.next();
+        while (elevatorController.getTotalWaitingPassengers().get() > 0) {
+            // when the elevator's state is IDLE, but there are still waiting passengers in building:
+            // the elevator's priority for going down the lowest or going up the highest calling floor
+            // depends on its current floor
+            if ( (Building.numFloors  - currentFloor) < (Building.numFloors/2)) // go down
+                destinationFloor = elevatorController.getCallingFloorsTable().lastEntry().getValue().getFloorIndex();
+            else // go up
+                destinationFloor = elevatorController.getCallingFloorsTable().firstEntry().getValue().getFloorIndex();
             direction = Direction.getDirection(currentFloor, destinationFloor);
 
             do {
@@ -139,14 +154,12 @@ public class Elevator {
                 nextFloor();
 
             } while (currentFloor != destinationFloor);
+
+            resetElevator();
         }
 
-        state = State.STOPPED;
         step++;
-        checkPassengersLeaving();
-        destinationFloor = currentFloor;
-        state = State.IDLE;
-        direction = Direction.NONE;
+        resetElevator();
         printStep();
     }
 
@@ -156,6 +169,12 @@ public class Elevator {
                 currentFloor++;
             else if (this.direction == Direction.DOWN)
                 currentFloor--;
+        }
+        // sleep() is called for the user to be managed to input data from User-Control-Panel
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
 
@@ -186,7 +205,7 @@ public class Elevator {
                 Iterator<Passenger> passengerIterator = travellingPassengers.iterator();
                 for (int j = 0; j < PASSENGERS_LIMIT; j++) {
                     if (passengerIterator.hasNext())
-                        System.out.printf("%3d", passengerIterator.next().getDestinationFloorIndex());
+                        System.out.printf("%3d", passengerIterator.next().getDestinationFloor());
                     else
                         System.out.printf("%3c", '.');
                 }
@@ -196,11 +215,18 @@ public class Elevator {
                 System.out.printf("%20c", spacer);
             if (!floors[i].getWaitingPassengers().isEmpty()) {
                 floors[i].getWaitingPassengers().forEach(passenger ->
-                        System.out.printf("%d ", passenger.getDestinationFloorIndex()));
+                        System.out.printf("%d ", passenger.getDestinationFloor()));
             }
             System.out.println();
         }
-        System.out.printf("Total out: %d  Total waiting: %d\n", totalOutPassengers, totalWaitingPassengers);
+        System.out.printf("Total out: %d  Total waiting: %d\n", totalOutPassengers, elevatorController.getTotalWaitingPassengers().intValue());
+        if (passengerAddedByUser.getAndSet(false)) {
+            System.out.println("[Waiting passenger is added by user!]");
+        }
+    }
+
+    public void setElevatorController(ElevatorController elevatorController) {
+        this.elevatorController = elevatorController;
     }
 
     public State getState() {
@@ -209,9 +235,5 @@ public class Elevator {
 
     public void setFloors(Floor[] floors) {
         this.floors = floors;
-    }
-
-    public void setTotalWaitingPassengers(int totalWaitingPassengers) {
-        this.totalWaitingPassengers = totalWaitingPassengers;
     }
 }

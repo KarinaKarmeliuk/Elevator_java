@@ -1,31 +1,35 @@
 public class Passenger {
 
     private Floor currentFloor;
-    private int destinationFloorIndex;
+    private int destinationFloor;
     private Direction direction;
 
     public Passenger(Floor floor) {
         currentFloor = floor;
-        setDestinationFloorIndex();
+        setDestinationFloor();
         setDirection();
+        pushButton();
+    }
+
+    public Passenger(Floor floor, int destinationFloor) {
+        currentFloor = floor;
+        this.destinationFloor = destinationFloor;
+        setDirection();
+        pushButton();
     }
 
     public Floor getCurrentFloor() {
         return currentFloor;
     }
 
-    public int getDestinationFloorIndex() {
-        return destinationFloorIndex;
+    public int getDestinationFloor() {
+        return destinationFloor;
     }
 
-    public void setDestinationFloorIndex() {
+    public void setDestinationFloor() {
         do {
-            destinationFloorIndex = RandomGenerator.getRandomNumberInRange(1, Building.numFloors);
-        } while (currentFloor.getFloorIndex() == destinationFloorIndex);
-    }
-
-    public void setCurrentFloor(Floor currentFloor) {
-        this.currentFloor = currentFloor;
+            destinationFloor = RandomGenerator.getRandomNumberInRange(1, Building.numFloors);
+        } while (currentFloor.getFloorIndex() == destinationFloor);
     }
 
     public Direction getDirection() {
@@ -33,7 +37,7 @@ public class Passenger {
     }
 
     public void setDirection() {
-        direction = Direction.getDirection(currentFloor.getFloorIndex(), destinationFloorIndex);
+        direction = Direction.getDirection(currentFloor.getFloorIndex(), destinationFloor);
     }
 
     public void pushButton() {

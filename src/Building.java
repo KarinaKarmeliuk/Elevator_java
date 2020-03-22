@@ -7,12 +7,14 @@ public class Building {
         numFloors = RandomGenerator.getRandomNumberInRange(5, 20);
         Elevator elevator = new Elevator();
         ElevatorController elevatorController = new ElevatorController(elevator);
-        Floor floors [] = new Floor[numFloors];
+        Floor floors[] = new Floor[numFloors];
 
         for (int i = 0; i < floors.length; i++) {
-            floors[i] = new Floor(i+1, elevatorController);
+            floors[i] = new Floor(i + 1, elevatorController);
         }
         elevator.setFloors(floors);
+        elevator.setElevatorController(elevatorController);
+        elevatorController.setFloors(floors);
 
         elevatorController.initiateElevatorWork();
     }
